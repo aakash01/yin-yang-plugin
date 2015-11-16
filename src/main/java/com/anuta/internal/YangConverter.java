@@ -29,10 +29,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import javax.swing.text.BadLocationException;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -123,6 +122,30 @@ public class YangConverter extends AbstractMojo {
     */
    private Boolean skipConversion;
 
+   /**
+    * list of custom arguments which can be passed while converting yang to yin
+    * Eg: --yin-pretty-strings
+    *
+    * @parameter
+    */
+   private String[] convertArgs;
+
+   /**
+    * Whether the yang format is skipped.
+    *
+    * @parameter default-value="false" expression="${skipFormat}"
+    */
+   private Boolean skipFormat;
+
+   /**
+    * list of custom arguments which can be passed while converting yang to yin
+    * Eg: --keep-comments
+    *
+    * @parameter
+    */
+   private String[] formatArgs;
+   
+
    private PlexusIoFileResourceCollection collection;
 
    private static int count = 0;
@@ -137,11 +160,6 @@ public class YangConverter extends AbstractMojo {
    @Override
    public void execute() throws MojoExecutionException, MojoFailureException {
 
-      if (skipConversion) {
-         getLog().info("Conversion is skipped");
-         return;
-      }
-      
       if(!isPyangInstalled()){
          getLog().error("Pyang is not installed. Skip conversion.");
          return;
@@ -168,26 +186,36 @@ public class YangConverter extends AbstractMojo {
 
       int numberOfFiles = files.size();
       Log log = getLog();
-      log.info("Number of yang/yin files to convert: " + numberOfFiles);
 
       if (numberOfFiles > 0) {
 
-         ResultCollector rc = new ResultCollector();
+         ResultCollector formatRC = new ResultCollector();
+         ResultCollector convertRC = new ResultCollector();
          Properties hashCache = readFileHashCacheFile();
 
          String basedirPath = getBasedirPath();
          for (int i = 0, n = files.size(); i < n; i++) {
             File file = (File) files.get(i);
-            convertFile(file, rc, hashCache, basedirPath);
+            convertAndFormatFile(file, formatRC, convertRC, hashCache, basedirPath);
          }
 
          storeFileHashCache(hashCache);
 
          long endClock = System.currentTimeMillis();
 
-         log.info("Successfully formatted: " + rc.successCount + " file(s)");
-         log.info("Fail to format        : " + rc.failCount + " file(s)");
-         log.info("Skipped               : " + rc.skippedCount + " file(s)");
+         if(!skipFormat) {
+            log.info("Number of yang/yin files to format: " + numberOfFiles);
+            log.info("Successfully formatted: " + formatRC.successCount + " file(s)");
+            log.info("Fail to format        : " + formatRC.failCount + " file(s)");
+            log.info("Skipped               : " + formatRC.skippedCount + " file(s)");
+         }
+         
+         if(!skipConversion) {
+            log.info("Number of yang/yin files to convert: " + numberOfFiles);
+            log.info("Successfully Converted: " + convertRC.successCount + " file(s)");
+            log.info("Fail to convert        : " + convertRC.failCount + " file(s)");
+            log.info("Skipped               : " + convertRC.skippedCount + " file(s)");
+         }
          log.info("Approximate time taken: " + ((endClock - startClock) / 1000) + "s");
       }
 
@@ -198,18 +226,24 @@ public class YangConverter extends AbstractMojo {
     * @return
     */
    private boolean isPyangInstalled(){
-      Runtime rt = Runtime.getRuntime();
       try {
-         Process pr = rt.exec("cmd /c pyang -v");
+         ProcessBuilder pb = new ProcessBuilder(getCommandString(OperationType.VERSION));
+         Process pr = pb.start();
          int exitVal = pr.waitFor();
-         return exitVal == 0;
+         if(exitVal == 0){
+            BufferedReader input = new BufferedReader(new InputStreamReader(pr.getInputStream()));
+            getLog().info("using " + input.readLine());
+            return true;
+         } else {
+            return false;
+         }
       } catch (IOException e) {
          e.printStackTrace();
          return false;
       } catch (InterruptedException e) {
          e.printStackTrace();
       }
-      return true;
+      return false;
    }
 
    /**
@@ -293,18 +327,20 @@ public class YangConverter extends AbstractMojo {
 
    /**
     * @param file
-    * @param rc
+    * @param convertRC
     * @param hashCache
     * @param basedirPath
     */
-   private void convertFile(File file, ResultCollector rc, Properties hashCache, String basedirPath) {
+   private void convertAndFormatFile(File file, ResultCollector formatRC, ResultCollector convertRC, Properties hashCache, String basedirPath) {
       try {
-         doConvertFile(file, rc, hashCache, basedirPath);
+         doConvertAndFormatFile(file,formatRC,  convertRC, hashCache, basedirPath);
       } catch (IOException e) {
-         rc.failCount++;
+         formatRC.failCount++;
+         convertRC.failCount++;
          getLog().warn(e);
       } catch (BadLocationException e) {
-         rc.failCount++;
+         formatRC.failCount++;
+         convertRC.failCount++;
          getLog().warn(e);
       }
    }
@@ -319,21 +355,19 @@ public class YangConverter extends AbstractMojo {
    }
 
    /**
-    * Format individual file.
-    *
+    * 
     * @param file
-    * @param rc
+    * @param formatRC
+    * @param convertRC
     * @param hashCache
     * @param basedirPath
     * @throws IOException
     * @throws BadLocationException
     */
-   private void doConvertFile(File file, ResultCollector rc, Properties hashCache, String basedirPath)
+   private void doConvertAndFormatFile(File file,ResultCollector formatRC, ResultCollector convertRC, Properties hashCache, String basedirPath)
                   throws IOException, BadLocationException {
       Log log = getLog();
       log.debug("Processing file: " + file);
-
-      Map<String, Object> prefs = new HashMap<String, Object>();
 
       String code = readFileAsString(file);
       String originalHash = md5hash(code);
@@ -342,15 +376,102 @@ public class YangConverter extends AbstractMojo {
       String path = canonicalPath.substring(basedirPath.length());
       String cachedHash = hashCache.getProperty(path);
       if (cachedHash != null && cachedHash.equals(originalHash)) {
-         rc.skippedCount++;
+         convertRC.skippedCount++;
+         formatRC.skippedCount++;
          return;
       }
 
-      Runtime rt = Runtime.getRuntime();
-      StringBuilder result = new StringBuilder();
+      convertAndFormat(file, formatRC, convertRC, hashCache, log, originalHash, path);
 
+   }
+
+   /**
+    * 
+    * @param file
+    * @param formatRC
+    * @param convertRC
+    * @param hashCache
+    * @param log
+    * @param originalHash
+    * @param path
+    * @return
+    * @throws IOException
+    */
+   private boolean convertAndFormat(File file, ResultCollector formatRC, ResultCollector convertRC,
+                  Properties hashCache, Log log, String originalHash, String path) throws IOException {
+      Runtime rt = Runtime.getRuntime();
+
+      if(!skipFormat){
+         getLog().info("Formatting file "+file.getName());
+         if(formatYang(file, formatRC, log, rt)){
+            getLog().info("Successfully formatted "+file.getName());
+            formatRC.successCount++;
+         }
+      } else {
+         getLog().info("Format is skipped");
+      }
+      if(!skipConversion){
+         getLog().info("Converting file "+file.getName());
+         if(convertYangToYin(file, convertRC, log, rt)){
+            getLog().info("Successfully converted "+file.getName());
+            convertRC.successCount++;
+         }
+      } else {
+         getLog().info("Conversion is skipped");
+      }
+
+      hashCache.setProperty(path, originalHash);
+      return true;
+   }
+
+   private boolean isWindows(){
+      String osName = System.getProperty("os.name");
+      return osName.startsWith("Windows");
+   }
+   /**
+    * get the command string. 
+    * Based on the ostype this can vary. right now supported only for windows. 
+    * @param operation
+    * @return
+    */
+   private List<String> getCommandString(OperationType operation){
+      List<String> commandBuilder = new ArrayList<String>();
+      if(isWindows()){
+         commandBuilder.addAll(Arrays.asList("cmd", "/c"));
+      }
+      commandBuilder.add("pyang");
+      if(operation == OperationType.VERSION){
+         commandBuilder.add("-v");
+      } else if(operation == OperationType.FORMAT){
+         if(formatArgs != null && formatArgs.length > 0){
+            for(String arg : formatArgs){
+               commandBuilder.add(arg);
+            }
+         }
+         commandBuilder.add("-f");
+         commandBuilder.add("yang");
+      } else if(operation == OperationType.CONVERT){
+         if(convertArgs != null && convertArgs.length > 0){
+            for(String arg : convertArgs){
+               commandBuilder.add(arg);
+            }
+         }
+         commandBuilder.add("-f");
+         commandBuilder.add("yin");
+      }
+      return commandBuilder;
+   }
+
+   private boolean formatYang(File file, ResultCollector rc, Log log, Runtime rt)
+                  throws IOException {
+      StringBuilder result = new StringBuilder();
       try {
-         Process pr = rt.exec("cmd /c pyang -f yin "+file.getCanonicalPath());
+         List<String> commandString = getCommandString(OperationType.FORMAT);
+         commandString.add(file.getCanonicalPath());
+         ProcessBuilder pb = new ProcessBuilder(commandString);
+         pb.directory(file.getParentFile());
+         getLog().debug("Executing command " + commandString.toString());
+         Process pr = pb.start();
          BufferedReader input = new BufferedReader(new InputStreamReader(pr.getInputStream()));
          String line=null;
 
@@ -371,6 +492,9 @@ public class YangConverter extends AbstractMojo {
             log.error(errorBuilder.toString());
             if(failOnError){
                throw new RuntimeException(errorBuilder.toString());
+            } else{
+               rc.failCount++;
+               return false;
             }
          }
       } catch (IOException e) {
@@ -379,21 +503,67 @@ public class YangConverter extends AbstractMojo {
          e.printStackTrace();
       }
 
-        
-        if (result == null) {
-            rc.failCount++;
-            return;
-        }
-        String convertedCode = result.toString();
+      if (result == null) {
+         rc.failCount++;
+         return false;
+      }
+      String convertedCode = result.toString();
+      writeStringToFile(convertedCode, file);
+      return true;
+      
+   }
+
+   private boolean convertYangToYin(File file, ResultCollector rc, Log log, Runtime rt)
+                  throws IOException {
+      StringBuilder result = new StringBuilder();
+      try {
+         List<String> commandString = getCommandString(OperationType.CONVERT);
+         commandString.add(file.getCanonicalPath());
+         ProcessBuilder pb = new ProcessBuilder(commandString);
+         pb.directory(file.getParentFile());
+         Process pr = pb.start();
+         BufferedReader input = new BufferedReader(new InputStreamReader(pr.getInputStream()));
+         String line=null;
+
+         while((line=input.readLine()) != null) {
+            result.append(line);
+            result.append("\n");
+         }
+         int exitVal = pr.waitFor();
+         if(exitVal != 0) {
+            BufferedReader error = new BufferedReader(new InputStreamReader(pr.getErrorStream()));
+            StringBuilder errorBuilder = new StringBuilder();
+            String err=null;
+
+            while((err=error.readLine()) != null) {
+               errorBuilder.append(err);
+               errorBuilder.append("\n");
+            }
+            log.error(errorBuilder.toString());
+            if(failOnError){
+               throw new RuntimeException(errorBuilder.toString());
+            } else{
+               rc.failCount++;
+               return false;
+            }
+         }
+      } catch (IOException e) {
+         e.printStackTrace();
+      } catch (InterruptedException e) {
+         e.printStackTrace();
+      }
+
+      if (result == null) {
+          rc.failCount++;
+         return false;
+      }
+      String convertedCode = result.toString();
       File yinFile = new File(getYinFileName(file));
       if(!yinFile.exists()){
          yinFile.createNewFile();
       }
-        hashCache.setProperty(path, originalHash);
-        writeStringToFile(convertedCode, yinFile);
-        rc.successCount++;
-        getLog().info(" Converted file --  " + file.getAbsolutePath());
-
+      writeStringToFile(convertedCode, yinFile);
+      return true;
    }
 
    private String getYinFileName(File yangFile){
@@ -454,15 +624,24 @@ public class YangConverter extends AbstractMojo {
       private int skippedCount;
    }
    
+   private enum OperationType {
+      VERSION,
+      CONVERT,
+      FORMAT
+   }
+   
    public static void main(String args[]){
       YangConverter yangConverter = new YangConverter();
       System.out.println("testing pyang ");
       System.out.print(yangConverter.isPyangInstalled());
       Runtime rt = Runtime.getRuntime();
+      
       File file = new File("D:\\office\\release_4.7\\modelbase\\src\\main\\resources\\anuta\\devicemodel1.yang");
       System.out.println(yangConverter.getYinFileName(file));
       try {
          System.out.println(file.getCanonicalPath());
+         System.out.print(yangConverter.isWindows());
+         System.getProperties().list(System.out);
       } catch (IOException e) {
          e.printStackTrace();
       }

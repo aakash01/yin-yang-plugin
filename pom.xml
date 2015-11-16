@@ -6,7 +6,7 @@
 
     <groupId>com.anuta.internal</groupId>
     <artifactId>yin-yang-plugin</artifactId>
-    <version>1.0</version>
+    <version>1.1</version>
     <name>yin-yang-plugin</name>
     <url>http://maven.apache.org</url>
     <description>Yang To Yin Plugin</description>

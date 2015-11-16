@@ -34,6 +34,9 @@ Sample pom file
                             </directories>
                             <skipConversion>${project.yang.skipConversion}</skipConversion>
                             <failOnError>false</failOnError>
+                            <formatArgs>
+                                <param>--keep-comments</param>
+                            </formatArgs>
                         </configuration>
                     </execution>
                 </executions>
