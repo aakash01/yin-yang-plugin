@@ -60,7 +60,9 @@ import org.codehaus.plexus.util.WriterFactory;
  */
 public class YangConverter extends AbstractMojo {
 
-   private static final String CACHE_PROPERTIES_FILENAME = "yin-yang-cache.properties";
+   private static final String CONVERT_CACHE_PROPERTIES_FILENAME = "yin-yang-convert-cache.properties";
+   private static final String FORMAT_CACHE_PROPERTIES_FILENAME = "yang-format-cache.properties";
+   private static final String COMPILE_CACHE_PROPERTIES_FILENAME = "yang-compile-cache.properties";
    private static final String[] DEFAULT_INCLUDES = new String[] { "**/*.yang" };
 
 
@@ -116,13 +118,6 @@ public class YangConverter extends AbstractMojo {
    private String encoding;
 
    /**
-    * Whether the conversion is skipped.
-    *
-    * @parameter default-value="false" expression="${skipConvert}"
-    */
-   private Boolean skipConversion;
-
-   /**
     * list of custom arguments which can be passed while converting yang to yin
     * Eg: --yin-pretty-strings
     *
@@ -131,19 +126,22 @@ public class YangConverter extends AbstractMojo {
    private String[] convertArgs;
 
    /**
-    * Whether the yang format is skipped.
-    *
-    * @parameter default-value="false" expression="${skipFormat}"
-    */
-   private Boolean skipFormat;
-
-   /**
     * list of custom arguments which can be passed while converting yang to yin
     * Eg: --keep-comments
     *
     * @parameter
     */
    private String[] formatArgs;
+
+   /**
+    * list of operations to be performed. Allowed values are COMPILE, FORMAT, CONVERT
+    * COMPILE ---- Only compile the yang files. No changed will be done. 
+    * FORMAT ---- Format the yang file. 
+    * CONVERT ---- Convert the yang file to yin with same name. 
+    * 
+    * @parameter
+    */
+   private String[] operations;
    
 
    private PlexusIoFileResourceCollection collection;
@@ -162,6 +160,11 @@ public class YangConverter extends AbstractMojo {
 
       if(!isPyangInstalled()){
          getLog().error("Pyang is not installed. Skip conversion.");
+         return;
+      }
+      
+      if(null == operations || operations.length == 0){
+         getLog().error("No operation defined. Exiting...");
          return;
       }
 
@@ -189,33 +192,31 @@ public class YangConverter extends AbstractMojo {
 
       if (numberOfFiles > 0) {
 
-         ResultCollector formatRC = new ResultCollector();
-         ResultCollector convertRC = new ResultCollector();
-         Properties hashCache = readFileHashCacheFile();
-
          String basedirPath = getBasedirPath();
-         for (int i = 0, n = files.size(); i < n; i++) {
-            File file = (File) files.get(i);
-            convertAndFormatFile(file, formatRC, convertRC, hashCache, basedirPath);
+         for(String operation : operations) {
+            OperationType operationType = null;
+            try {
+               operationType = OperationType.valueOf(operation);
+            }catch (IllegalArgumentException  ia){
+               log.error("Operation "+operation+" is not defined. Continue.");
+               continue;
+            }
+
+            Properties hashCache = readFileHashCacheFile(operationType);
+            ResultCollector resultCollector = new ResultCollector();
+            for (int i = 0, n = files.size(); i < n; i++) {
+               File file = (File) files.get(i);
+               performOperation(file, resultCollector, operationType,  hashCache, basedirPath);
+            }
+            log.info("\nOperation            : "+operation);
+            log.info("Number of yang files : " + numberOfFiles);
+            log.info("Successful           : " + resultCollector.successCount + " file(s)");
+            log.info("Failed               : " + resultCollector.failCount + " file(s)");
+            log.info("Skipped              : " + resultCollector.skippedCount + " file(s)\n");
+            storeFileHashCache(hashCache, operationType);
          }
-
-         storeFileHashCache(hashCache);
-
          long endClock = System.currentTimeMillis();
 
-         if(!skipFormat) {
-            log.info("Number of yang/yin files to format: " + numberOfFiles);
-            log.info("Successfully formatted: " + formatRC.successCount + " file(s)");
-            log.info("Fail to format        : " + formatRC.failCount + " file(s)");
-            log.info("Skipped               : " + formatRC.skippedCount + " file(s)");
-         }
-         
-         if(!skipConversion) {
-            log.info("Number of yang/yin files to convert: " + numberOfFiles);
-            log.info("Successfully Converted: " + convertRC.successCount + " file(s)");
-            log.info("Fail to convert        : " + convertRC.failCount + " file(s)");
-            log.info("Skipped               : " + convertRC.skippedCount + " file(s)");
-         }
          log.info("Approximate time taken: " + ((endClock - startClock) / 1000) + "s");
       }
 
@@ -279,9 +280,27 @@ public class YangConverter extends AbstractMojo {
          files.add(resource.getFile());
       }
    }
+   
+   private String getCacheFileNameFromOperationType(OperationType operationType){
+      switch (operationType){
+      case VERSION:
+         break;
+      case COMPILE:
+         return COMPILE_CACHE_PROPERTIES_FILENAME;
+      case CONVERT : 
+         return CONVERT_CACHE_PROPERTIES_FILENAME;
+      case FORMAT:
+         return FORMAT_CACHE_PROPERTIES_FILENAME;
+      }
+      return null;
+   }
 
-   private void storeFileHashCache(Properties props) {
-      File cacheFile = new File(targetDirectory, CACHE_PROPERTIES_FILENAME);
+   private void storeFileHashCache(Properties props, OperationType operationType) {
+      String cacheFileName = getCacheFileNameFromOperationType(operationType);
+      if(null == cacheFileName){
+         return;
+      }
+      File cacheFile = new File(targetDirectory, cacheFileName);
       try {
          OutputStream out = new BufferedOutputStream(new FileOutputStream(cacheFile));
          props.store(out, null);
@@ -292,7 +311,7 @@ public class YangConverter extends AbstractMojo {
       }
    }
 
-   private Properties readFileHashCacheFile() {
+   private Properties readFileHashCacheFile(OperationType operationType) {
       Properties props = new Properties();
       Log log = getLog();
       if (!targetDirectory.exists()) {
@@ -301,8 +320,11 @@ public class YangConverter extends AbstractMojo {
          log.warn("Something strange here as the " + "supposedly target directory is not a directory.");
          return props;
       }
-
-      File cacheFile = new File(targetDirectory, CACHE_PROPERTIES_FILENAME);
+      String cacheFileName = getCacheFileNameFromOperationType(operationType);
+      if(null == cacheFileName){
+         return null;
+      }
+      File cacheFile = new File(targetDirectory, cacheFileName);
       if (!cacheFile.exists()) {
          return props;
       }
@@ -326,21 +348,21 @@ public class YangConverter extends AbstractMojo {
    }
 
    /**
-    * @param file
-    * @param convertRC
+    *  @param file
+    * @param resultCollector
+    * @param operation
     * @param hashCache
     * @param basedirPath
     */
-   private void convertAndFormatFile(File file, ResultCollector formatRC, ResultCollector convertRC, Properties hashCache, String basedirPath) {
+   private void performOperation(File file, ResultCollector resultCollector, OperationType operation, Properties hashCache,
+                  String basedirPath) {
       try {
-         doConvertAndFormatFile(file,formatRC,  convertRC, hashCache, basedirPath);
+         doOperation(file, resultCollector, operation, hashCache, basedirPath);
       } catch (IOException e) {
-         formatRC.failCount++;
-         convertRC.failCount++;
+         resultCollector.failCount++;
          getLog().warn(e);
       } catch (BadLocationException e) {
-         formatRC.failCount++;
-         convertRC.failCount++;
+         resultCollector.failCount++;
          getLog().warn(e);
       }
    }
@@ -357,14 +379,15 @@ public class YangConverter extends AbstractMojo {
    /**
     * 
     * @param file
-    * @param formatRC
-    * @param convertRC
+    * @param resultCollector
+    * @param operation
     * @param hashCache
     * @param basedirPath
     * @throws IOException
     * @throws BadLocationException
     */
-   private void doConvertAndFormatFile(File file,ResultCollector formatRC, ResultCollector convertRC, Properties hashCache, String basedirPath)
+   private void doOperation(File file, ResultCollector resultCollector, OperationType operation, Properties hashCache,
+                  String basedirPath)
                   throws IOException, BadLocationException {
       Log log = getLog();
       log.debug("Processing file: " + file);
@@ -374,22 +397,23 @@ public class YangConverter extends AbstractMojo {
 
       String canonicalPath = file.getCanonicalPath();
       String path = canonicalPath.substring(basedirPath.length());
-      String cachedHash = hashCache.getProperty(path);
-      if (cachedHash != null && cachedHash.equals(originalHash)) {
-         convertRC.skippedCount++;
-         formatRC.skippedCount++;
-         return;
+      if(hashCache != null) {
+         String cachedHash = hashCache.getProperty(path);
+         if (cachedHash != null && cachedHash.equals(originalHash)) {
+            resultCollector.skippedCount++;
+            return;
+         }
       }
 
-      convertAndFormat(file, formatRC, convertRC, hashCache, log, originalHash, path);
+      executeOperation(file, resultCollector, operation, hashCache, log, originalHash, path);
 
    }
 
    /**
     * 
     * @param file
-    * @param formatRC
-    * @param convertRC
+    * @param resultCollector
+    * @param operation
     * @param hashCache
     * @param log
     * @param originalHash
@@ -397,30 +421,31 @@ public class YangConverter extends AbstractMojo {
     * @return
     * @throws IOException
     */
-   private boolean convertAndFormat(File file, ResultCollector formatRC, ResultCollector convertRC,
+   private boolean executeOperation(File file, ResultCollector resultCollector, OperationType operation,
                   Properties hashCache, Log log, String originalHash, String path) throws IOException {
       Runtime rt = Runtime.getRuntime();
-
-      if(!skipFormat){
-         getLog().info("Formatting file "+file.getName());
-         if(formatYang(file, formatRC, log, rt)){
+      
+      if(operation == OperationType.FORMAT){
+         if(formatYang(file, resultCollector, log, rt)){
             getLog().info("Successfully formatted "+file.getName());
-            formatRC.successCount++;
+            resultCollector.successCount++;
          }
-      } else {
-         getLog().info("Format is skipped");
       }
-      if(!skipConversion){
-         getLog().info("Converting file "+file.getName());
-         if(convertYangToYin(file, convertRC, log, rt)){
+      else if(operation == OperationType.CONVERT){
+         if(convertYangToYin(file, resultCollector, log, rt)){
             getLog().info("Successfully converted "+file.getName());
-            convertRC.successCount++;
+            resultCollector.successCount++;
          }
-      } else {
-         getLog().info("Conversion is skipped");
       }
-
-      hashCache.setProperty(path, originalHash);
+      else if(operation == OperationType.COMPILE){
+         if(compileYang(file, resultCollector, log, rt)){
+            getLog().info("Successfully compiled "+file.getName());
+            resultCollector.successCount++;
+         }
+      }
+      if(hashCache != null) {
+         hashCache.setProperty(path, originalHash);
+      }
       return true;
    }
 
@@ -511,6 +536,55 @@ public class YangConverter extends AbstractMojo {
       writeStringToFile(convertedCode, file);
       return true;
       
+   }
+
+   private boolean compileYang(File file, ResultCollector rc, Log log, Runtime rt)
+                  throws IOException {
+      StringBuilder result = new StringBuilder();
+      try {
+         List<String> commandString = getCommandString(OperationType.FORMAT);
+         commandString.add(file.getCanonicalPath());
+         ProcessBuilder pb = new ProcessBuilder(commandString);
+         pb.directory(file.getParentFile());
+         getLog().debug("Executing command " + commandString.toString());
+         Process pr = pb.start();
+         BufferedReader input = new BufferedReader(new InputStreamReader(pr.getInputStream()));
+         String line=null;
+
+         while((line=input.readLine()) != null) {
+            result.append(line);
+            result.append("\n");
+         }
+         int exitVal = pr.waitFor();
+         if(exitVal != 0) {
+            BufferedReader error = new BufferedReader(new InputStreamReader(pr.getErrorStream()));
+            StringBuilder errorBuilder = new StringBuilder();
+            String err=null;
+
+            while((err=error.readLine()) != null) {
+               errorBuilder.append(err);
+               errorBuilder.append("\n");
+            }
+            log.error(errorBuilder.toString());
+            if(failOnError){
+               throw new RuntimeException(errorBuilder.toString());
+            } else{
+               rc.failCount++;
+               return false;
+            }
+         }
+      } catch (IOException e) {
+         e.printStackTrace();
+      } catch (InterruptedException e) {
+         e.printStackTrace();
+      }
+
+      if (result == null) {
+         rc.failCount++;
+         return false;
+      }
+      return true;
+
    }
 
    private boolean convertYangToYin(File file, ResultCollector rc, Log log, Runtime rt)
@@ -626,6 +700,7 @@ public class YangConverter extends AbstractMojo {
    
    private enum OperationType {
       VERSION,
+      COMPILE,
       CONVERT,
       FORMAT
    }
