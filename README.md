@@ -32,7 +32,11 @@ Sample pom file
                             <directories>
                                 <param>${project.basedir}/src/main/resources</param>
                             </directories>
-                            <skipConversion>${project.yang.skipConversion}</skipConversion>
+                            <operations>
+                                <param>COMPILE</param>
+                                <param>CONVERT</param>
+                                <param>FORMAT</param>
+                            </operations>
                             <failOnError>false</failOnError>
                             <formatArgs>
                                 <param>--keep-comments</param>
