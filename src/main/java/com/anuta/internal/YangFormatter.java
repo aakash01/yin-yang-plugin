@@ -71,6 +71,9 @@ public class YangFormatter extends YangHelperMojo {
          commandString.add(file.getCanonicalPath());
          ProcessBuilder pb = new ProcessBuilder(commandString);
          pb.directory(file.getParentFile());
+         if(null != getYangMODPath()){
+            pb.environment().put("YANG_MODPATH",getYangMODPath());
+         }
          getLog().debug("Executing command " + commandString.toString());
          Process pr = pb.start();
          BufferedReader input = new BufferedReader(new InputStreamReader(pr.getInputStream()));

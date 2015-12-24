@@ -70,6 +70,9 @@ public class YangConverter extends YangHelperMojo {
             commandString.add(file.getCanonicalPath());
             ProcessBuilder pb = new ProcessBuilder(commandString);
             pb.directory(file.getParentFile());
+            if(null != getYangMODPath()){
+               pb.environment().put("YANG_MODPATH",getYangMODPath());
+            }
             Process pr = pb.start();
             BufferedReader input = new BufferedReader(new InputStreamReader(pr.getInputStream()));
             String line=null;

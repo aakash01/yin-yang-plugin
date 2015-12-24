@@ -39,6 +39,7 @@ import org.codehaus.plexus.components.io.resources.PlexusIoFileResource;
 import org.codehaus.plexus.components.io.resources.PlexusIoFileResourceCollection;
 import org.codehaus.plexus.util.IOUtil;
 import org.codehaus.plexus.util.ReaderFactory;
+import org.codehaus.plexus.util.StringUtils;
 import org.codehaus.plexus.util.WriterFactory;
 
 /**
@@ -47,6 +48,7 @@ import org.codehaus.plexus.util.WriterFactory;
 public abstract class YangHelperMojo extends AbstractMojo {
 
    private static final String[] DEFAULT_INCLUDES = new String[] { "**/*.yang" };
+   private static final String[] DEFAULT_EXCLUDES = new String[] { "**/ietf*.yang" };
 
 
    /**
@@ -65,6 +67,15 @@ public abstract class YangHelperMojo extends AbstractMojo {
     * @required
     */
    private File basedir;
+
+   /**
+    * Project's source directory as specified in the POM.
+    * 
+    * @parameter default-value="${basedir}/src"
+    * 
+    */
+   private File sourceDirectory;
+   
 
    /**
     * Location of the Yang source files to convert.
@@ -100,6 +111,14 @@ public abstract class YangHelperMojo extends AbstractMojo {
     */
    private String encoding;
 
+   /**
+    * recomended pyang version 
+    *
+    * @parameter default-value="1.6"
+    *
+    */
+   private String pyangVersion ;
+
    private PlexusIoFileResourceCollection collection;
 
    private static int count = 0;
@@ -110,16 +129,25 @@ public abstract class YangHelperMojo extends AbstractMojo {
     * @parameter default-value="true" expression="${failOnError}"
     */
    private Boolean failOnError=true;
+
+   /**
+    * YANG_MODPATH
+    * 
+    * @parameter
+    */
+   private String yangMODPath;
    
    public void executeGoal(OperationType operationType) throws MojoExecutionException, MojoFailureException {
+
+      Log log = getLog();
       if(null != excludes && excludes.length>0){
          for(String excl : excludes){
-            getLog().info("Excluding file "+excl);
+            log.info("Excluding file " + excl);
          }
       }
 
       if(!isPyangInstalled()){
-         getLog().error("Pyang is not installed. Skip conversion.");
+         log.error("Pyang is not installed. Skip conversion.");
          return;
       }
 
@@ -129,7 +157,6 @@ public abstract class YangHelperMojo extends AbstractMojo {
 
       List files = new ArrayList();
       try {
-
          if (directories != null) {
             for (File directory : directories) {
                if (directory.exists() && directory.isDirectory()) {
@@ -137,13 +164,19 @@ public abstract class YangHelperMojo extends AbstractMojo {
                   addCollectionFiles(files);
                }
             }
+         } else if (this.sourceDirectory != null && this.sourceDirectory.exists()
+                        && this.sourceDirectory.isDirectory()) {
+            log.info("Using Source Directory." + this.sourceDirectory);
+            collection.setBaseDir(this.sourceDirectory);
+            addCollectionFiles(files);
+         } else {
+            log.error("No source directory specified to scan yang files.");
          }
       } catch (IOException e) {
          throw new MojoExecutionException("Unable to find files using includes/excludes", e);
       }
 
       int numberOfFiles = files.size();
-      Log log = getLog();
 
       log.info("Number of files for "+operationType+" "+numberOfFiles);
       if (numberOfFiles > 0) {
@@ -167,6 +200,26 @@ public abstract class YangHelperMojo extends AbstractMojo {
       }
    }
 
+   public String getYangMODPath() {
+      return yangMODPath;
+   }
+
+   private double versionCompare(String v1, String v2) {
+      double val1;
+      if (StringUtils.isBlank(v1)) {
+         val1 = 0;
+      } else {
+         val1 = Double.parseDouble(v1);
+      }
+      double val2;
+      if (StringUtils.isBlank(v2)) {
+         val2 = 0;
+      } else {
+         val2 = Double.parseDouble(v2);
+      }
+
+      return val1 - val2;
+   }
 
    /**
     * This method checks if a pyang is installed or not. If pyang is not installed it will silently return. 
@@ -179,7 +232,14 @@ public abstract class YangHelperMojo extends AbstractMojo {
          int exitVal = pr.waitFor();
          if(exitVal == 0){
             BufferedReader input = new BufferedReader(new InputStreamReader(pr.getInputStream()));
-            getLog().info("using " + input.readLine());
+            String pyang_version = input.readLine();
+            getLog().info("using " + pyang_version);
+            if(pyang_version.contains("pyang ")) {
+               String version = pyang_version.substring(pyang_version.indexOf("pyang ") + 6);
+               if (versionCompare(version, pyangVersion) != 0) {
+                  getLog().warn("Recommended pyang version " + pyangVersion + " using " + version);
+               }
+            }
             return true;
          } else {
             return false;
@@ -204,7 +264,11 @@ public abstract class YangHelperMojo extends AbstractMojo {
       } else {
          collection.setIncludes(DEFAULT_INCLUDES);
       }
-      collection.setExcludes(excludes);
+      if(excludes != null && excludes.length > 0){
+         collection.setExcludes(excludes);
+      }else {
+         collection.setExcludes(DEFAULT_EXCLUDES);
+      }
       collection.setIncludingEmptyDirectories(false);
 
       IncludeExcludeFileSelector fileSelector = new IncludeExcludeFileSelector();
@@ -365,6 +429,7 @@ public abstract class YangHelperMojo extends AbstractMojo {
          e.printStackTrace();
          resultCollector.failCount++;
       } catch (RuntimeException re){
+         resultCollector.failCount++;
          if(failOnError) {
             throw re;
          }
