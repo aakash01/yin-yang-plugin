@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Yin-yang-plugin by aakash01</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Yin-yang-plugin</h1>
+      <h2 class="project-tagline">Plugin to convert yang file to yin file as part of maven build</h2>
+      <a href="https://github.com/aakash01/yin-yang-plugin" class="btn">View on GitHub</a>
+      <a href="https://github.com/aakash01/yin-yang-plugin/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/aakash01/yin-yang-plugin/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h3>
+<a id="yin-yang-plugin" class="anchor" href="#yin-yang-plugin" aria-hidden="true"><span class="octicon octicon-link"></span></a>YIN Yang Plugin</h3>
+
+<h1>
+<a id="yang-to-yin-converter-maven-plugin" class="anchor" href="#yang-to-yin-converter-maven-plugin" aria-hidden="true"><span class="octicon octicon-link"></span></a>Yang to Yin Converter Maven Plugin</h1>
+
+<p>This is a maven plugin which converts yang files to yin using pyang tool. </p>
+
+<h1>
+<a id="prerequisite" class="anchor" href="#prerequisite" aria-hidden="true"><span class="octicon octicon-link"></span></a>Prerequisite</h1>
+
+<p>Make sure that pyang is installed and added to path. To check if pyang is installed or not , run pyang -v  on command prompt. </p>
+
+<h1>
+<a id="usage" class="anchor" href="#usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Usage</h1>
+
+<p>Sample pom file </p>
+
+<div class="highlight highlight-text-xml"><pre>            &lt;<span class="pl-ent">plugin</span>&gt;
+                &lt;<span class="pl-ent">groupId</span>&gt;com.anuta.internal&lt;/<span class="pl-ent">groupId</span>&gt;
+                &lt;<span class="pl-ent">artifactId</span>&gt;yin-yang-plugin&lt;/<span class="pl-ent">artifactId</span>&gt;
+                &lt;<span class="pl-ent">version</span>&gt;1.0&lt;/<span class="pl-ent">version</span>&gt;
+                &lt;<span class="pl-ent">dependencies</span>&gt;
+                    &lt;<span class="pl-ent">dependency</span>&gt;
+                        &lt;<span class="pl-ent">groupId</span>&gt;org.apache.maven&lt;/<span class="pl-ent">groupId</span>&gt;
+                        &lt;<span class="pl-ent">artifactId</span>&gt;maven-plugin-api&lt;/<span class="pl-ent">artifactId</span>&gt;
+                        &lt;<span class="pl-ent">version</span>&gt;2.0&lt;/<span class="pl-ent">version</span>&gt;
+                    &lt;/<span class="pl-ent">dependency</span>&gt;
+                &lt;/<span class="pl-ent">dependencies</span>&gt;
+                &lt;<span class="pl-ent">executions</span>&gt;
+                    &lt;<span class="pl-ent">execution</span>&gt;
+                        &lt;<span class="pl-ent">phase</span>&gt;compile&lt;/<span class="pl-ent">phase</span>&gt;
+                        &lt;<span class="pl-ent">goals</span>&gt;
+                            &lt;<span class="pl-ent">goal</span>&gt;convert&lt;/<span class="pl-ent">goal</span>&gt;
+                        &lt;/<span class="pl-ent">goals</span>&gt;
+                        &lt;<span class="pl-ent">configuration</span>&gt;
+                            &lt;<span class="pl-ent">directories</span>&gt;
+                                &lt;<span class="pl-ent">param</span>&gt;${project.basedir}/src/main/resources&lt;/<span class="pl-ent">param</span>&gt;
+                            &lt;/<span class="pl-ent">directories</span>&gt;
+                            &lt;<span class="pl-ent">operations</span>&gt;
+                                &lt;<span class="pl-ent">param</span>&gt;COMPILE&lt;/<span class="pl-ent">param</span>&gt;
+                                &lt;<span class="pl-ent">param</span>&gt;CONVERT&lt;/<span class="pl-ent">param</span>&gt;
+                                &lt;<span class="pl-ent">param</span>&gt;FORMAT&lt;/<span class="pl-ent">param</span>&gt;
+                            &lt;/<span class="pl-ent">operations</span>&gt;
+                            &lt;<span class="pl-ent">failOnError</span>&gt;false&lt;/<span class="pl-ent">failOnError</span>&gt;
+                            &lt;<span class="pl-ent">formatArgs</span>&gt;
+                                &lt;<span class="pl-ent">param</span>&gt;--keep-comments&lt;/<span class="pl-ent">param</span>&gt;
+                            &lt;/<span class="pl-ent">formatArgs</span>&gt;
+                        &lt;/<span class="pl-ent">configuration</span>&gt;
+                    &lt;/<span class="pl-ent">execution</span>&gt;
+                &lt;/<span class="pl-ent">executions</span>&gt;
+            &lt;/<span class="pl-ent">plugin</span>&gt;
+</pre></div>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/aakash01/yin-yang-plugin">Yin-yang-plugin</a> is maintained by <a href="https://github.com/aakash01">aakash01</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+            <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-71863559-1");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>
