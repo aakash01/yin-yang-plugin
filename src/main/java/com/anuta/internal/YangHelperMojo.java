@@ -137,6 +137,8 @@ public abstract class YangHelperMojo extends AbstractMojo {
     */
    private String yangMODPath;
    
+   public abstract OperationType getOperation();
+   
    public void executeGoal(OperationType operationType) throws MojoExecutionException, MojoFailureException {
 
       Log log = getLog();
@@ -386,8 +388,8 @@ public abstract class YangHelperMojo extends AbstractMojo {
                   String basedirPath)
                   throws IOException, BadLocationException {
       Log log = getLog();
-      log.info("Processing file: " + file);
-
+      log.debug("Processing file: " + file);
+      
       String code = readFileAsString(file);
       String originalHash = md5hash(code);
 
@@ -396,11 +398,12 @@ public abstract class YangHelperMojo extends AbstractMojo {
       if(hashCache != null) {
          String cachedHash = hashCache.getProperty(path);
          if (cachedHash != null && cachedHash.equals(originalHash)) {
+            log.debug("File Skipped");
             resultCollector.skippedCount++;
             return;
          }
       }
-
+      log.info(getOperation()+" file: " + file);
       executeOperation(file, resultCollector, hashCache, log, originalHash, path);
 
    }
@@ -541,52 +544,4 @@ public abstract class YangHelperMojo extends AbstractMojo {
       CONVERT,
       FORMAT
    }
-
-   public static void main(String args[]){
-     /* YangConverter yangConverter = new YangConverter();
-      System.out.println("testing pyang ");
-      System.out.print(yangConverter.isPyangInstalled());
-      Runtime rt = Runtime.getRuntime();
-
-      File file = new File("D:\\office\\release_4.7\\modelbase\\src\\main\\resources\\anuta\\devicemodel1.yang");
-      System.out.println(yangConverter.getYinFileName(file));
-      try {
-         System.out.println(file.getCanonicalPath());
-         System.out.print(yangConverter.isWindows());
-         System.getProperties().list(System.out);
-      } catch (IOException e) {
-         e.printStackTrace();
-      }
-      System.out.println(file.getName());*/
-      /*try {
-         System.out.println(file.getCanonicalPath());
-         Process pr = rt.exec("cmd /c pyang44 -f yin "+file.getCanonicalPath());
-         BufferedReader input = new BufferedReader(new InputStreamReader(pr.getInputStream()));
-         StringBuilder result = new StringBuilder();
-         String line=null;
-
-         while((line=input.readLine()) != null) {
-            result.append(line);
-            result.append("\n");
-         }
-         System.out.println(result.toString());
-         int exitVal = pr.waitFor();
-         if(exitVal != 0) {
-            BufferedReader error = new BufferedReader(new InputStreamReader(pr.getErrorStream()));
-            StringBuilder errorBuilder = new StringBuilder();
-            String err=null;
-
-            while((err=error.readLine()) != null) {
-               errorBuilder.append(err);
-               errorBuilder.append("\n");
-            }
-            System.out.println(errorBuilder.toString());
-         }
-      } catch (IOException e) {
-         e.printStackTrace();
-      } catch (InterruptedException e) {
-         e.printStackTrace();
-      }*/
-   }
-
 }

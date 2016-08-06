@@ -52,6 +52,11 @@ public class YangFormatter extends YangHelperMojo {
    }
 
    @Override
+   public OperationType getOperation() {
+      return OperationType.FORMAT;
+   }
+
+   @Override
    public String getCacheFile() {
       return FORMAT_CACHE_PROPERTIES_FILENAME;
    }

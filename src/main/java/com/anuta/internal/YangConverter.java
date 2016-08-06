@@ -52,6 +52,11 @@ public class YangConverter extends YangHelperMojo {
    }
 
    @Override
+   public OperationType getOperation() {
+      return OperationType.CONVERT;
+   }
+
+   @Override
    public String getCacheFile() {
       return CONVERT_CACHE_PROPERTIES_FILENAME;
    }

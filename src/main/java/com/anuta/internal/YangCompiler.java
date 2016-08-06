@@ -52,6 +52,11 @@ public class YangCompiler extends YangHelperMojo {
    }
 
    @Override
+   public OperationType getOperation() {
+      return OperationType.COMPILE;
+   }
+
+   @Override
    public String getCacheFile() {
       return COMPILE_CACHE_PROPERTIES_FILENAME;
    }
