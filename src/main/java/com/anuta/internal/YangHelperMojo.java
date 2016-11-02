@@ -221,8 +221,13 @@ public abstract class YangHelperMojo extends AbstractMojo {
          }
       }
 
-      if (v1Scanner.hasNextInt()) return 1;
-      return 0;
+      if (v1Scanner.hasNextInt()) {
+         return 1;
+      } else if (v2Scanner.hasNextInt()) {
+         return -1;
+      } else {
+         return 0;
+      }
    }
 
    /**
