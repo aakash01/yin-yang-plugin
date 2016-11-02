@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
+import java.util.Scanner;
 import javax.swing.text.BadLocationException;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.maven.plugin.AbstractMojo;
@@ -206,21 +207,29 @@ public abstract class YangHelperMojo extends AbstractMojo {
       return yangMODPath;
    }
 
-   private double versionCompare(String v1, String v2) {
-      double val1;
-      if (StringUtils.isBlank(v1)) {
-         val1 = 0;
-      } else {
-         val1 = Double.parseDouble(v1);
-      }
-      double val2;
-      if (StringUtils.isBlank(v2)) {
-         val2 = 0;
-      } else {
-         val2 = Double.parseDouble(v2);
+   private double versionCompare(String version1, String version2) {
+      Scanner v1Scanner = new Scanner(version1);
+      Scanner v2Scanner = new Scanner(version2);
+      v1Scanner.useDelimiter("\\.");
+      v2Scanner.useDelimiter("\\.");
+
+      while (v1Scanner.hasNextInt() && v2Scanner.hasNextInt()) {
+         int v1 = v1Scanner.nextInt();
+         int v2 = v2Scanner.nextInt();
+         if (v1 < v2) {
+            return -1;
+         } else if (v1 > v2) {
+            return 1;
+         }
       }
 
-      return val1 - val2;
+      if (v1Scanner.hasNextInt()) {
+         return 1;
+      } else if (v2Scanner.hasNextInt()) {
+         return -1;
+      } else {
+         return 0;
+      }
    }
 
    /**
